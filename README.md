@@ -9,7 +9,7 @@ Queue contract: [`docs/PRINTING.md`](https://github.com/intrepid-g/everything/bl
 ## Install
 
 ```sh
-./install.sh        # puts btprint and thermal-poller in ~/.local/bin
+make install      # puts btprint and thermal-poller in ~/.local/bin
 ```
 
 ## First run
@@ -28,8 +28,8 @@ To change a value, edit or delete the file.
 ```sh
 btprint 'Line one\nLine two'      # print text
 btprint -i picture.png            # print an image
-thermal-poller                    # poll every 30 s
-thermal-poller --once             # one poll, e.g. from launchd/cron
+make run                          # poll every 30 s (or run thermal-poller)
+make once                         # one poll, e.g. from launchd/cron
 ```
 
 ## How the printer works
