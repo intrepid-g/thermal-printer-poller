@@ -6,7 +6,13 @@ import sys
 from pathlib import Path
 
 PATH = Path(os.environ.get("THERMAL_PRINTER_CONFIG", Path.home() / ".config" / "thermal-printer" / "config.json"))
-ENV = {"printer_addr": "BTPRINT_ADDR", "server_url": "EVERYTHING_URL", "token": "EVERYTHING_PRINT_TOKEN"}
+ENV = {
+    "printer_addr": "BTPRINT_ADDR",
+    "server_url": "EVERYTHING_URL",
+    "token": "EVERYTHING_PRINT_TOKEN",
+    "feed": "BTPRINT_FEED",  # blank lines of paper after each print
+    "rule": "BTPRINT_RULE",  # 1 = draw a horizontal rule under each print, 0 = none
+}
 
 
 def _load() -> dict:
@@ -35,3 +41,8 @@ def get(key: str, prompt: str, ask=input) -> str:
     _save({**_load(), key: value})
     print(f"saved {key} to {PATH}", file=sys.stderr)
     return value
+
+
+def get_optional(key: str, default: str) -> str:
+    """Env var, else the saved value, else the default. Never asks."""
+    return os.environ.get(ENV[key]) or _load().get(key) or default
