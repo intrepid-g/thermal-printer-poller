@@ -28,9 +28,24 @@ To change a value, edit or delete the file.
 ```sh
 btprint 'Line one\nLine two'      # print text
 btprint -i picture.png            # print an image
+btprint --feed 8 'hi'             # more paper after the print
+btprint --no-rule 'hi'            # no separator line
 make run                          # poll every 30 s (or run thermal-poller)
 make once                         # one poll, e.g. from launchd/cron
 ```
+
+## Separator and paper feed
+
+Every print ends with a horizontal rule (so separate prints are easy to tell apart), then feeds paper
+so the text clears the tear bar. Both are configurable:
+
+| Setting | Flag | Env / config key | Default |
+| --- | --- | --- | --- |
+| Blank lines fed after a print (0-255) | `--feed N` | `BTPRINT_FEED` / `feed` | 4 |
+| Rule under each print | `--no-rule` | `BTPRINT_RULE=0` / `rule` | on |
+
+Flags apply to one `btprint` call; the env var or a key in `~/.config/thermal-printer/config.json`
+(e.g. `"feed": 8`) applies to `btprint` and `thermal-poller` alike.
 
 ## How the printer works
 
