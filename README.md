@@ -31,7 +31,9 @@ btprint -i picture.png            # print an image
 btprint --feed 8 'hi'             # more paper after the print
 btprint --no-rule 'hi'            # no separator line
 make run                          # poll every 30 s (or run thermal-poller)
-make once                         # one poll, e.g. from launchd/cron
+make once                         # one poll
+make launchd-install              # background agent, polls every 60 s, log ~/Library/Logs/thermal-poller.log
+make launchd-uninstall            # stop and remove it
 ```
 
 ## Separator and paper feed
