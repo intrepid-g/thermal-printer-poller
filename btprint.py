@@ -74,6 +74,15 @@ def rule_enabled(override: bool | None = None) -> bool:
     return config.get_optional("rule", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
+async def reachable(address: str, timeout: float = 8) -> bool:
+    """True when the printer is advertising now (a scan returns as soon as it is seen)."""
+    return await BleakScanner.find_device_by_address(address, timeout=timeout) is not None
+
+
+def printer_online() -> bool:
+    return asyncio.run(reachable(printer_address()))
+
+
 async def send(image: Image.Image, address: str, feed: int) -> None:
     raster = image.point(lambda p: 0 if p else 1).convert("1").tobytes()
     height = image.height

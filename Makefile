@@ -1,7 +1,7 @@
 D := $(HOME)/.local/share/thermal-printer
 BIN := $(HOME)/.local/bin
 
-.PHONY: help install run once uninstall launchd-install launchd-uninstall
+.PHONY: help install test run once uninstall launchd-install launchd-uninstall
 
 LABEL := com.thermal-printer.poller
 PLIST := $(HOME)/Library/LaunchAgents/$(LABEL).plist
@@ -9,6 +9,7 @@ LOG := $(HOME)/Library/Logs/thermal-poller.log
 
 help:
 	@echo "make install    install btprint and thermal-poller into ~/.local/bin"
+	@echo "make test       run the unit tests"
 	@echo "make run        poll every 30 s (asks for settings on first run)"
 	@echo "make once       poll once"
 	@echo "make launchd-install    poll every 60 s in the background (launchd user agent)"
@@ -24,6 +25,9 @@ install:
 	printf '#!/bin/sh\nexec "$(D)/venv/bin/python" "$(D)/poller.py" "$$@"\n' > $(BIN)/thermal-poller
 	chmod +x $(BIN)/btprint $(BIN)/thermal-poller
 	@echo "installed. Next: make run"
+
+test: install
+	cd $(CURDIR) && PYTHONPATH=. $(D)/venv/bin/python -m unittest discover -s tests
 
 run: install
 	$(BIN)/thermal-poller
