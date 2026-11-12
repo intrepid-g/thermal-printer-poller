@@ -49,6 +49,11 @@ def run_job(url: str, token: str, job: dict) -> None:
 
 
 def poll_once(url: str, token: str) -> int:
+    # Claiming burns an attempt and the 3rd failure kills the job, so never claim for an absent printer:
+    # jobs wait in the queue and the next tick after the printer returns prints them.
+    if not btprint.printer_online():
+        print("printer offline; jobs stay queued", file=sys.stderr)
+        return 0
     jobs = call(url, token, "claim_print_jobs", {"limit": BATCH})
     for job in jobs:
         run_job(url, token, job)

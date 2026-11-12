@@ -11,6 +11,7 @@ ENV = {
     "server_url": "EVERYTHING_URL",
     "token": "EVERYTHING_PRINT_TOKEN",
     "feed": "BTPRINT_FEED",  # blank lines of paper after each print
+    "usb": "BTPRINT_USB",  # 1 = print over USB when plugged in; off until a USB test print works on the paper
     "rule": "BTPRINT_RULE",  # 1 = draw a horizontal rule under each print, 0 = none
 }
 
