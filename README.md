@@ -15,7 +15,7 @@ make install          # puts btprint and thermal-poller in ~/.local/bin
 
 ## USB first, BLE fallback
 
-**Experimental, off by default.** Set `BTPRINT_USB=1` (or `"usb": "1"` in the config file) to try it. On one M120 the USB port accepted data but printed nothing, so test with `BTPRINT_USB=1 btprint 'hi'` first.
+**Off by default.** Set `BTPRINT_USB=1` (or `"usb": "1"` in the config file) to enable it. It prints fine, but with the printer switched off its USB chip still shows up and swallows data, so the poller cannot tell "off" from "on" and would mark jobs printed with no paper. Bluetooth advertising exists only while the printer is on, so BLE stays the default.
 
 When enabled and the printer is plugged in by USB (it shows as a USB printer, vendor `0x0483`, product `0x5740`), every print goes over USB.
 Plug and unplug need no handling: each poll looks again. With no USB device, prints go over BLE as below.
