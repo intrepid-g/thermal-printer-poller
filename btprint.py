@@ -89,7 +89,11 @@ def usb_backend():
 
 
 def usb_device():
-    """The printer if it is plugged in now, else None. Plug and unplug need no handling: each call looks afresh."""
+    """The printer if USB is enabled and it is plugged in now, else None. Each call looks afresh."""
+    # tried USB-on-by-default: the M120's USB port took writes (and a status poll got no reply) but printed nothing,
+    # so jobs were marked printed with no paper; opt in with BTPRINT_USB=1 after a test print works
+    if config.get_optional("usb", "0").strip().lower() in ("0", "false", "no", "off"):
+        return None
     return usb.core.find(idVendor=USB_VENDOR, idProduct=USB_PRODUCT, backend=usb_backend())
 
 
