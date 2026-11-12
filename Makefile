@@ -19,7 +19,7 @@ help:
 install:
 	mkdir -p $(D) $(BIN)
 	[ -d $(D)/venv ] || python3 -m venv $(D)/venv
-	$(D)/venv/bin/pip -q install bleak pillow
+	$(D)/venv/bin/pip -q install bleak pillow pyusb
 	cp config.py btprint.py poller.py $(D)/
 	printf '#!/bin/sh\nexec "$(D)/venv/bin/python" "$(D)/btprint.py" "$$@"\n' > $(BIN)/btprint
 	printf '#!/bin/sh\nexec "$(D)/venv/bin/python" "$(D)/poller.py" "$$@"\n' > $(BIN)/thermal-poller

@@ -11,6 +11,9 @@ The printer's BLE address (a macOS-assigned UUID) is asked once, then saved.
 import asyncio
 import sys
 
+import usb.backend.libusb1
+import usb.core
+import usb.util
 from bleak import BleakClient, BleakScanner
 from PIL import Image, ImageDraw, ImageFont
 
@@ -21,6 +24,9 @@ WIDTH = 384
 CHUNK = 180
 DEFAULT_FEED = 4
 RULE_HEIGHT = 12  # rows of paper the separator takes; the line itself is 3 px thick
+USB_VENDOR, USB_PRODUCT = 0x0483, 0x5740  # the M120 as macOS lists it: USB printer class, bulk OUT endpoint
+USB_CHUNK = 4096
+LIBUSB_PATHS = ("/opt/homebrew/lib/libusb-1.0.dylib", "/usr/local/lib/libusb-1.0.dylib")  # launchd has no brew env
 NAME_HINT = "Q244"  # how this printer advertises itself; a scan lists these first
 
 
@@ -74,19 +80,49 @@ def rule_enabled(override: bool | None = None) -> bool:
     return config.get_optional("rule", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
+def usb_backend():
+    for path in LIBUSB_PATHS:
+        backend = usb.backend.libusb1.get_backend(find_library=lambda _name, path=path: path)
+        if backend:
+            return backend
+    return usb.backend.libusb1.get_backend()
+
+
+def usb_device():
+    """The printer if it is plugged in now, else None. Plug and unplug need no handling: each call looks afresh."""
+    return usb.core.find(idVendor=USB_VENDOR, idProduct=USB_PRODUCT, backend=usb_backend())
+
+
+def payload(image: Image.Image, feed: int) -> bytes:
+    raster = image.point(lambda p: 0 if p else 1).convert("1").tobytes()
+    return b"\x1b@\x1dv0\x00" + (WIDTH // 8).to_bytes(2, "little") + image.height.to_bytes(2, "little") + raster + b"\x1bd" + bytes([feed])
+
+
+def send_usb(device, data: bytes) -> None:
+    usb.util.claim_interface(device, 0)
+    try:
+        out = usb.util.find_descriptor(
+            device.get_active_configuration()[(0, 0)],
+            custom_match=lambda e: usb.util.endpoint_direction(e.bEndpointAddress) == usb.util.ENDPOINT_OUT,
+        )
+        for i in range(0, len(data), USB_CHUNK):
+            out.write(data[i : i + USB_CHUNK], timeout=10000)
+    finally:
+        usb.util.release_interface(device, 0)
+        usb.util.dispose_resources(device)
+
+
 async def reachable(address: str, timeout: float = 8) -> bool:
     """True when the printer is advertising now (a scan returns as soon as it is seen)."""
     return await BleakScanner.find_device_by_address(address, timeout=timeout) is not None
 
 
 def printer_online() -> bool:
-    return asyncio.run(reachable(printer_address()))
+    return usb_device() is not None or asyncio.run(reachable(printer_address()))
 
 
 async def send(image: Image.Image, address: str, feed: int) -> None:
-    raster = image.point(lambda p: 0 if p else 1).convert("1").tobytes()
-    height = image.height
-    data = b"\x1b@\x1dv0\x00" + (WIDTH // 8).to_bytes(2, "little") + height.to_bytes(2, "little") + raster + b"\x1bd" + bytes([feed])
+    data = payload(image, feed)
     async with BleakClient(address, timeout=20) as client:
         for i in range(0, len(data), CHUNK):
             await client.write_gatt_char(WRITE_CHAR, data[i : i + CHUNK], response=False)
@@ -97,7 +133,11 @@ async def send(image: Image.Image, address: str, feed: int) -> None:
 def print_image(image: Image.Image, feed: int | None = None, rule: bool | None = None) -> None:
     if rule_enabled(rule):
         image = with_rule(image)
-    asyncio.run(send(image, printer_address(), feed_lines(feed)))
+    device = usb_device()  # USB first: no pairing, no advertising to lose; BLE is the fallback
+    if device is not None:
+        send_usb(device, payload(image, feed_lines(feed)))
+    else:
+        asyncio.run(send(image, printer_address(), feed_lines(feed)))
 
 
 def main() -> None:
