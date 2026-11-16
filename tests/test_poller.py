@@ -30,3 +30,14 @@ class PollOnceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WrapTest(unittest.TestCase):
+    def test_one_tool_endpoint_runs_real_tools_through_call_tool(self):
+        self.assertEqual(
+            poller.wrap("https://h/mcp/", "claim_print_jobs", {"limit": 5}),
+            ("call_tool", {"name": "claim_print_jobs", "arguments": {"limit": 5}}),
+        )
+
+    def test_full_endpoint_calls_the_tool_directly(self):
+        self.assertEqual(poller.wrap("https://h/mcp-full/", "claim_print_jobs", {"limit": 5}), ("claim_print_jobs", {"limit": 5}))
