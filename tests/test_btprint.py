@@ -40,3 +40,26 @@ class RoutingTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TodoTest(unittest.TestCase):
+    GOLDEN = "GROCERY RUN\nMon 16 Nov 2026\n\n[ ] Milk\n[x] Bananas\n\n1 of 2 done"
+    DOC = ('{"title":"Grocery run","subtitle":"Mon 16 Nov 2026","show_totals":true,'
+           '"items":[{"text":"Milk","done":false},{"text":"Bananas","done":true}]}')
+
+    def test_json_becomes_the_golden_checklist(self):
+        self.assertEqual(btprint.todo_text(self.DOC), self.GOLDEN)
+
+    def test_bad_json_or_empty_items_exit_with_a_message(self):
+        for raw in ("not json", "[]", '{"items":[]}'):
+            with self.assertRaises(SystemExit):
+                btprint.todo_text(raw)
+
+
+class WrapTest(unittest.TestCase):
+    def test_long_line_wraps_inside_the_paper_and_keeps_blank_lines(self):
+        font = btprint.ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 40)
+        lines = btprint.wrap("[ ] Bread, the good kind of bread\n\nend", font, btprint.WIDTH - 20)
+        self.assertGreater(len(lines), 3)
+        self.assertEqual(lines[-2:], ["", "end"])
+        self.assertTrue(all(font.getlength(line) <= btprint.WIDTH - 20 for line in lines))

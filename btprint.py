@@ -4,11 +4,15 @@
     btprint -i picture.png
     btprint --feed 8 'more paper after'     # blank lines after the print (default 4, 0-255)
     btprint --no-rule 'no separator line'   # skip the rule drawn under each print
+    btprint todo '{"title":"Grocery run","subtitle":"Mon 16 Nov 2026","show_totals":true,
+                   "items":[{"text":"Milk","done":false},{"text":"Bananas","done":true}]}'
+    btprint todo < list.json                # JSON from stdin when no argument is given
 
 The printer's BLE address (a macOS-assigned UUID) is asked once, then saved.
 """
 
 import asyncio
+import json
 import sys
 
 import usb.backend.libusb1
@@ -18,6 +22,7 @@ from bleak import BleakClient, BleakScanner
 from PIL import Image, ImageDraw, ImageFont
 
 import config
+from todo import format_todo
 
 WRITE_CHAR = "0000ff02-0000-1000-8000-00805f9b34fb"
 WIDTH = 384
@@ -30,9 +35,25 @@ LIBUSB_PATHS = ("/opt/homebrew/lib/libusb-1.0.dylib", "/usr/local/lib/libusb-1.0
 NAME_HINT = "Q244"  # how this printer advertises itself; a scan lists these first
 
 
+def wrap(text: str, font, max_width: int) -> list[str]:
+    """Greedy word wrap per line; a word wider than the paper is left to clip (ponytail: split by character if it ever matters)."""
+    out = []
+    for line in text.split("\n"):
+        current = ""
+        for word in line.split(" "):
+            candidate = f"{current} {word}" if current else word
+            if current and font.getlength(candidate) > max_width:
+                out.append(current)
+                current = word
+            else:
+                current = candidate
+        out.append(current)
+    return out
+
+
 def render(text: str) -> Image.Image:
     font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 40)
-    lines = text.split("\n")
+    lines = wrap(text, font, WIDTH - 20)
     image = Image.new("1", (WIDTH, len(lines) * 56 + 20), 1)
     draw = ImageDraw.Draw(image)
     for i, line in enumerate(lines):
@@ -145,6 +166,15 @@ def print_image(image: Image.Image, feed: int | None = None, rule: bool | None =
         asyncio.run(send(image, printer_address(), feed_lines(feed)))
 
 
+def todo_text(raw: str) -> str:
+    """The printable text of a to-do JSON document; SystemExit with a message when it is bad."""
+    try:
+        data = json.loads(raw)
+        return format_todo(data.get("title"), data.get("subtitle"), data.get("items"), bool(data.get("show_totals")))
+    except (ValueError, AttributeError) as exc:
+        sys.exit(f"btprint todo: {exc}")
+
+
 def main() -> None:
     args, feed, rule = sys.argv[1:], None, None
     while args and args[0] in ("--feed", "--no-rule"):
@@ -153,8 +183,11 @@ def main() -> None:
         else:
             feed, args = int(args[1]), args[2:]
     if not args:
-        sys.exit("usage: btprint [--feed N] [--no-rule] 'text' | btprint -i image.png")
-    image = from_image(args[1]) if args[0] == "-i" else render(" ".join(args).replace("\\n", "\n"))
+        sys.exit("usage: btprint [--feed N] [--no-rule] 'text' | -i image.png | todo [json]")
+    if args[0] == "todo":
+        image = render(todo_text(" ".join(args[1:]) or sys.stdin.read()))
+    else:
+        image = from_image(args[1]) if args[0] == "-i" else render(" ".join(args).replace("\\n", "\n"))
     print_image(image, feed, rule)
 
 

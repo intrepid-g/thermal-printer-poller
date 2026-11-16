@@ -39,6 +39,8 @@ btprint 'Line one\nLine two'      # print text
 btprint -i picture.png            # print an image
 btprint --feed 8 'hi'             # more paper after the print
 btprint --no-rule 'hi'            # no separator line
+btprint todo '{"title":"Grocery run","subtitle":"Mon 16 Nov 2026","show_totals":true,"items":[{"text":"Milk","done":false}]}'
+                                  # check-box list from JSON (or `btprint todo < list.json`)
 make run                          # poll every 30 s (or run thermal-poller)
 make once                         # one poll
 make launchd-install              # background agent, polls every 60 s, log ~/Library/Logs/thermal-poller.log
