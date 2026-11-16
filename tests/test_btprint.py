@@ -43,17 +43,26 @@ if __name__ == "__main__":
 
 
 class TodoTest(unittest.TestCase):
-    GOLDEN = "GROCERY RUN\nMon 16 Nov 2026\n\n[ ] Milk\n[x] Bananas\n\n1 of 2 done"
     DOC = ('{"title":"Grocery run","subtitle":"Mon 16 Nov 2026","show_totals":true,'
            '"items":[{"text":"Milk","done":false},{"text":"Bananas","done":true}]}')
 
-    def test_json_becomes_the_golden_checklist(self):
-        self.assertEqual(btprint.todo_text(self.DOC), self.GOLDEN)
+    def test_json_becomes_a_paper_wide_one_bit_image(self):
+        image = btprint.todo_image(self.DOC)
+        self.assertEqual((image.width, image.mode), (btprint.WIDTH, "1"))
+        self.assertGreater(image.height, 150)
 
     def test_bad_json_or_empty_items_exit_with_a_message(self):
         for raw in ("not json", "[]", '{"items":[]}'):
             with self.assertRaises(SystemExit):
-                btprint.todo_text(raw)
+                btprint.todo_image(raw)
+
+
+class BandTest(unittest.TestCase):
+    def test_a_tall_image_is_sent_as_several_blocks_with_one_init_and_one_feed(self):
+        data = btprint.payload(Image.new("1", (384, 2500), 1), 4)
+        self.assertEqual(data.count(b"\x1dv0\x00"), 3)  # 1024 + 1024 + 452 rows
+        self.assertTrue(data.startswith(b"\x1b@") and data.endswith(b"\x1bd\x04"))
+        self.assertEqual(len(data), 2 + 3 * 8 + 2500 * 48 + 3)
 
 
 class WrapTest(unittest.TestCase):

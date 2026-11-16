@@ -22,7 +22,7 @@ from bleak import BleakClient, BleakScanner
 from PIL import Image, ImageDraw, ImageFont
 
 import config
-from todo import format_todo
+from todo import draw_todo, parse_todo
 
 WRITE_CHAR = "0000ff02-0000-1000-8000-00805f9b34fb"
 WIDTH = 384
@@ -119,9 +119,16 @@ def usb_device():
     return usb.core.find(idVendor=USB_VENDOR, idProduct=USB_PRODUCT, backend=usb_backend())
 
 
+BAND_ROWS = 1024  # one GS v 0 block per band: a long list is many short blocks, never one huge one (height is 2 bytes)
+
+
 def payload(image: Image.Image, feed: int) -> bytes:
-    raster = image.point(lambda p: 0 if p else 1).convert("1").tobytes()
-    return b"\x1b@\x1dv0\x00" + (WIDTH // 8).to_bytes(2, "little") + image.height.to_bytes(2, "little") + raster + b"\x1bd" + bytes([feed])
+    bands = []
+    for top in range(0, image.height, BAND_ROWS):
+        band = image.crop((0, top, WIDTH, min(top + BAND_ROWS, image.height)))
+        raster = band.point(lambda p: 0 if p else 1).convert("1").tobytes()
+        bands.append(b"\x1dv0\x00" + (WIDTH // 8).to_bytes(2, "little") + band.height.to_bytes(2, "little") + raster)
+    return b"\x1b@" + b"".join(bands) + b"\x1bd" + bytes([feed])
 
 
 def send_usb(device, data: bytes) -> None:
@@ -147,13 +154,27 @@ def printer_online() -> bool:
     return usb_device() is not None or asyncio.run(reachable(printer_address()))
 
 
+NOTIFY_CHAR = "0000ff03-0000-1000-8000-00805f9b34fb"
+QUIET_S, MAX_WAIT_S = 3.0, 120.0  # the printer notifies while it prints; hang up only after QUIET_S of silence
+
+
 async def send(image: Image.Image, address: str, feed: int) -> None:
     data = payload(image, feed)
+    loop = asyncio.get_running_loop()
+    last = loop.time()
+
+    def heard(_handle, _data) -> None:
+        nonlocal last
+        last = loop.time()
+
     async with BleakClient(address, timeout=20) as client:
+        await client.start_notify(NOTIFY_CHAR, heard)
         for i in range(0, len(data), CHUNK):
             await client.write_gatt_char(WRITE_CHAR, data[i : i + CHUNK], response=False)
             await asyncio.sleep(0.02)
-        await asyncio.sleep(3)
+        start = loop.time()
+        while loop.time() - last < QUIET_S and loop.time() - start < MAX_WAIT_S:
+            await asyncio.sleep(0.25)
 
 
 def print_image(image: Image.Image, feed: int | None = None, rule: bool | None = None) -> None:
@@ -166,13 +187,17 @@ def print_image(image: Image.Image, feed: int | None = None, rule: bool | None =
         asyncio.run(send(image, printer_address(), feed_lines(feed)))
 
 
-def todo_text(raw: str) -> str:
-    """The printable text of a to-do JSON document; SystemExit with a message when it is bad."""
+MENLO = "/System/Library/Fonts/Menlo.ttc"  # monospace: the check-box list lines up
+
+
+def todo_image(raw: str) -> Image.Image:
+    """A to-do JSON document drawn with check-boxes; SystemExit with a message when it is bad."""
     try:
         data = json.loads(raw)
-        return format_todo(data.get("title"), data.get("subtitle"), data.get("items"), bool(data.get("show_totals")))
+        todo = parse_todo(data.get("title"), data.get("subtitle"), data.get("items"), bool(data.get("show_totals")))
     except (ValueError, AttributeError) as exc:
         sys.exit(f"btprint todo: {exc}")
+    return draw_todo(todo, ImageFont.truetype(MENLO, 22), ImageFont.truetype(MENLO, 28, index=1), WIDTH)
 
 
 def main() -> None:
@@ -185,7 +210,7 @@ def main() -> None:
     if not args:
         sys.exit("usage: btprint [--feed N] [--no-rule] 'text' | -i image.png | todo [json]")
     if args[0] == "todo":
-        image = render(todo_text(" ".join(args[1:]) or sys.stdin.read()))
+        image = todo_image(" ".join(args[1:]) or sys.stdin.read())
     else:
         image = from_image(args[1]) if args[0] == "-i" else render(" ".join(args).replace("\\n", "\n"))
     print_image(image, feed, rule)
