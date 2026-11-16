@@ -20,7 +20,15 @@ INTERVAL = 30  # seconds between polls
 BATCH = 5
 
 
+def wrap(url: str, tool: str, arguments: dict) -> tuple[str, dict]:
+    """On the one-tool `/mcp/` endpoint real tools run through `call_tool`; `/mcp-full/` takes them directly."""
+    if url.rstrip("/").endswith("/mcp"):
+        return "call_tool", {"name": tool, "arguments": arguments}
+    return tool, arguments
+
+
 def call(url: str, token: str, tool: str, arguments: dict):
+    tool, arguments = wrap(url, tool, arguments)
     body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}
     request = urllib.request.Request(
         url, data=json.dumps(body).encode(), method="POST",
